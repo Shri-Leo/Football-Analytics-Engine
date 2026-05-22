@@ -1,0 +1,107 @@
+import pandas as pd
+import numpy as np
+from scipy.stats import poisson
+
+# =========================
+# LOAD TEAM STRENGTHS
+# =========================
+
+strengths = pd.read_csv(
+    "Data/Processed/epl_team_strengths.csv",
+    index_col=0
+)
+
+# =========================
+# LEAGUE CONSTANTS
+# =========================
+
+LEAGUE_HOME_GOALS = 1.531
+LEAGUE_AWAY_GOALS = 1.164
+
+# =========================
+# EXPECTED GOALS
+# =========================
+
+def calculate_xg(home_team, away_team):
+
+    home_xg = (
+        strengths.loc[home_team, "home_attack_strength"]
+        * strengths.loc[away_team, "away_defense_strength"]
+        * LEAGUE_HOME_GOALS
+    )
+
+    away_xg = (
+        strengths.loc[away_team, "away_attack_strength"]
+        * strengths.loc[home_team, "home_defense_strength"]
+        * LEAGUE_AWAY_GOALS
+    )
+
+    return home_xg, away_xg
+
+# =========================
+# SIMULATE MATCH
+# =========================
+
+def simulate_match(home_team, away_team):
+
+    home_xg, away_xg = calculate_xg(
+        home_team,
+        away_team
+    )
+
+    home_goals = np.random.poisson(home_xg)
+    away_goals = np.random.poisson(away_xg)
+
+    return home_goals, away_goals
+
+# =========================
+# MATCH PROBABILITIES
+# =========================
+
+def calculate_match_probabilities(
+    home_team,
+    away_team,
+    max_goals=5
+):
+
+    home_xg, away_xg = calculate_xg(
+        home_team,
+        away_team
+    )
+
+    home_goal_probs = [
+        poisson.pmf(i, home_xg)
+        for i in range(max_goals + 1)
+    ]
+
+    away_goal_probs = [
+        poisson.pmf(i, away_xg)
+        for i in range(max_goals + 1)
+    ]
+
+    home_win_prob = 0
+    draw_prob = 0
+    away_win_prob = 0
+
+    for hg in range(max_goals + 1):
+        for ag in range(max_goals + 1):
+
+            probability = (
+                home_goal_probs[hg]
+                * away_goal_probs[ag]
+            )
+
+            if hg > ag:
+                home_win_prob += probability
+
+            elif hg == ag:
+                draw_prob += probability
+
+            else:
+                away_win_prob += probability
+
+    return {
+        "home_win": home_win_prob,
+        "draw": draw_prob,
+        "away_win": away_win_prob
+    }
