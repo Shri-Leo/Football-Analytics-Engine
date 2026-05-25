@@ -1,86 +1,94 @@
 import pandas as pd
 
-INPUT_PATH = "Data/Processed/epl_clean.csv"
-
 # =========================
-# LOAD DATA
+# LEAGUES
 # =========================
 
-df = pd.read_csv(INPUT_PATH)
-
-# Convert date properly
-df["date"] = pd.to_datetime(df["date"])
-
-# =========================
-# LEAGUE AVERAGES
-# =========================
-
-league_home_goals = df["home_goals"].mean()
-league_away_goals = df["away_goals"].mean()
-
-print("\n==== LEAGUE AVERAGES ====")
-print(f"Average Home Goals: {league_home_goals:.3f}")
-print(f"Average Away Goals: {league_away_goals:.3f}")
+LEAGUES = [
+    "epl",
+    "laliga",
+    "seriea",
+    "bundesliga",
+    "ligue1"
+]
 
 # =========================
-# HOME TEAM STRENGTHS
+# GENERATE TEAM STRENGTHS
 # =========================
 
-home_stats = df.groupby("home_team").agg({
-    "home_goals": "mean",
-    "away_goals": "mean"
-})
+def generate_team_strengths(league):
 
-home_stats = home_stats.rename(columns={
-    "home_goals": "avg_home_scored",
-    "away_goals": "avg_home_conceded"
-})
+    input_path = ( f"Data/Processed/" f"{league}_clean.csv" )
 
-# Attack strength
-home_stats["home_attack_strength"] = (
-    home_stats["avg_home_scored"] / league_home_goals
-)
+    output_path = ( f"Data/Processed/" f"{league}_team_strengths.csv" )
 
-# Defense strength
-home_stats["home_defense_strength"] = (
-    home_stats["avg_home_conceded"] / league_away_goals
-)
+    print(f"\n===== {league.upper()} =====")
+
+    matches = pd.read_csv(input_path)
+
+    # =========================
+    # LEAGUE AVERAGES
+    # =========================
+
+    avg_home_goals = matches["home_goals"].mean()
+
+    avg_away_goals = matches["away_goals"].mean()
+
+    print( f"Average Home Goals: " f"{avg_home_goals:.3f}" )
+
+    print( f"Average Away Goals: " f"{avg_away_goals:.3f}" )
+
+    # =========================
+    # HOME STATS
+    # =========================
+
+    home_stats = matches.groupby("home_team").agg({ "home_goals": "mean", "away_goals": "mean" })
+
+    home_stats.columns = [ "avg_home_scored", "avg_home_conceded" ]
+
+    # =========================
+    # AWAY STATS
+    # =========================
+
+    away_stats = matches.groupby("away_team").agg({ "away_goals": "mean", "home_goals": "mean" })
+
+    away_stats.columns = [ "avg_away_scored", "avg_away_conceded" ]
+
+    # =========================
+    # COMBINE
+    # =========================
+
+    strengths = home_stats.join( away_stats, how="inner" )
+
+    # =========================
+    # ATTACK / DEFENSE STRENGTH
+    # =========================
+
+    strengths["home_attack_strength"] = ( strengths["avg_home_scored"] / avg_home_goals )
+
+    strengths["home_defense_strength"] = ( strengths["avg_home_conceded"] / avg_away_goals )
+
+    strengths["away_attack_strength"] = ( strengths["avg_away_scored"] / avg_away_goals )
+
+    strengths["away_defense_strength"] = ( strengths["avg_away_conceded"] / avg_home_goals )
+
+    # =========================
+    # SAVE
+    # =========================
+
+    strengths.to_csv(output_path)
+
+    print( f"{league}_team_strengths.csv created." )
+
+    print("\n===== SAMPLE =====")
+
+    print(strengths.head())
 
 # =========================
-# AWAY TEAM STRENGTHS
+# RUN ALL LEAGUES
 # =========================
 
-away_stats = df.groupby("away_team").agg({
-    "away_goals": "mean",
-    "home_goals": "mean"
-})
+if __name__ == "__main__":
 
-away_stats = away_stats.rename(columns={
-    "away_goals": "avg_away_scored",
-    "home_goals": "avg_away_conceded"
-})
-
-# Attack strength
-away_stats["away_attack_strength"] = (
-    away_stats["avg_away_scored"] / league_away_goals
-)
-
-# Defense strength
-away_stats["away_defense_strength"] = (
-    away_stats["avg_away_conceded"] / league_home_goals
-)
-
-# =========================
-# COMBINE STATS
-# =========================
-
-team_strengths = home_stats.join(away_stats)
-
-print("\n==== TEAM STRENGTHS ====")
-print(team_strengths.head())
-
-OUTPUT_PATH = "Data/Processed/epl_team_strengths.csv"
-
-team_strengths.to_csv(OUTPUT_PATH)
-
-print("\nTeam strengths saved successfully.")
+    for league in LEAGUES:
+        generate_team_strengths(league)

@@ -1,39 +1,49 @@
 import pandas as pd
 import numpy as np
+
 from scipy.stats import poisson
 
-# =========================
-# LOAD TEAM STRENGTHS
-# =========================
-
-strengths = pd.read_csv(
-    "Data/Processed/epl_team_strengths.csv",
-    index_col=0
-)
+from Src.Core.config import LEAGUE_CONFIG
 
 # =========================
-# LEAGUE CONSTANTS
+# LOAD LEAGUE DATA
 # =========================
 
-LEAGUE_HOME_GOALS = 1.531
-LEAGUE_AWAY_GOALS = 1.164
+def load_league_data(league):
+
+    config = LEAGUE_CONFIG[league]
+
+    strengths = pd.read_csv(
+        config["strengths_file"],
+        index_col=0
+    )
+
+    return strengths, config
 
 # =========================
 # EXPECTED GOALS
 # =========================
 
-def calculate_xg(home_team, away_team):
+def calculate_xg(
+    home_team,
+    away_team,
+    league="epl"
+):
+
+    strengths, config = load_league_data(
+        league
+    )
 
     home_xg = (
-        strengths.loc[home_team, "home_attack_strength"]
-        * strengths.loc[away_team, "away_defense_strength"]
-        * LEAGUE_HOME_GOALS
+        strengths.loc[ home_team, "home_attack_strength" ]
+        * strengths.loc[ away_team, "away_defense_strength" ]
+        * config["home_goals_avg"]
     )
 
     away_xg = (
-        strengths.loc[away_team, "away_attack_strength"]
-        * strengths.loc[home_team, "home_defense_strength"]
-        * LEAGUE_AWAY_GOALS
+        strengths.loc[ away_team, "away_attack_strength" ]
+        * strengths.loc[ home_team, "home_defense_strength" ]
+        * config["away_goals_avg"]
     )
 
     return home_xg, away_xg
@@ -42,15 +52,13 @@ def calculate_xg(home_team, away_team):
 # SIMULATE MATCH
 # =========================
 
-def simulate_match(home_team, away_team):
+def simulate_match( home_team, away_team, league="epl" ):
 
-    home_xg, away_xg = calculate_xg(
-        home_team,
-        away_team
-    )
+    home_xg, away_xg = calculate_xg( home_team, away_team, league )
 
-    home_goals = np.random.poisson(home_xg)
-    away_goals = np.random.poisson(away_xg)
+    home_goals = np.random.poisson( home_xg )
+
+    away_goals = np.random.poisson( away_xg )
 
     return home_goals, away_goals
 
@@ -58,16 +66,9 @@ def simulate_match(home_team, away_team):
 # MATCH PROBABILITIES
 # =========================
 
-def calculate_match_probabilities(
-    home_team,
-    away_team,
-    max_goals=5
-):
+def calculate_match_probabilities( home_team, away_team, league="epl", max_goals=5 ):
 
-    home_xg, away_xg = calculate_xg(
-        home_team,
-        away_team
-    )
+    home_xg, away_xg = calculate_xg( home_team, away_team, league )
 
     home_goal_probs = [
         poisson.pmf(i, home_xg)
