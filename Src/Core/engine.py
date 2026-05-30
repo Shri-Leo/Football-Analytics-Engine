@@ -18,7 +18,15 @@ def load_league_data(league):
         index_col=0
     )
 
-    return strengths, config
+    elo = pd.read_csv(
+        f"Data/Processed/{league}_elo.csv"
+    )
+
+    form = pd.read_csv(
+        f"Data/Processed/{league}_form.csv"
+    )
+
+    return strengths, elo, form, config
 
 # =========================
 # EXPECTED GOALS
@@ -30,9 +38,21 @@ def calculate_xg(
     league="epl"
 ):
 
-    strengths, config = load_league_data(
+    strengths, elo, form, config = load_league_data(
         league
     )
+
+    home_elo = elo.loc[ elo["team"] == home_team, "elo" ].iloc[0]
+
+    away_elo = elo.loc[ elo["team"] == away_team, "elo" ].iloc[0]
+
+    home_form = form.loc[ form["team"] == home_team, "form_percentage" ].iloc[0]
+
+    away_form = form.loc[ form["team"] == away_team, "form_percentage" ].iloc[0]
+
+    elo_factor = ((home_elo - away_elo) / 400)
+
+    form_factor = ((home_form - away_form) / 100)
 
     home_xg = (
         strengths.loc[ home_team, "home_attack_strength" ]
@@ -45,6 +65,14 @@ def calculate_xg(
         * strengths.loc[ home_team, "home_defense_strength" ]
         * config["away_goals_avg"]
     )
+
+    home_xg *= ( 1 + (elo_factor * 0.10) + (form_factor * 0.10))
+
+    away_xg *= ( 1 - (elo_factor * 0.10) - (form_factor * 0.10))
+
+    home_xg = max( home_xg, 0.1 )
+    
+    away_xg = max( away_xg, 0.1 )
 
     return home_xg, away_xg
 
